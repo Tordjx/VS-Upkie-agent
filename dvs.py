@@ -2,12 +2,12 @@ import cv2
 import depthai as dai
 import numpy as np
 import visp as vp
-
+size = np.array([640, 400])
 # --- Create DepthAI pipeline ---
 pipeline = dai.Pipeline()
 rgbd = pipeline.create(dai.node.RGBD).build(
     True, dai.node.StereoDepth.PresetMode.FAST_ACCURACY, 
-    size=(640, 400)
+    size=tuple(size //4)
 )
 qRgbd = rgbd.rgbd.createOutputQueue()
 pipeline.start()
@@ -78,12 +78,12 @@ while True:
 
         # Build desired visual feature
         sId = vp.visual_features.FeatureLuminance() 
-        sId.init(h, w, 1.0)  # Z can be 1.0 for normalized interaction matrix
+        sId.init(h, w, np.mean(depth_frame))  # Z can be 1.0 for normalized interaction matrix
         sId.buildFrom(Id)
 
         # Build current feature
         sI = vp.visual_features.FeatureLuminance()
-        sI.init(h, w, 1.0)
+        sI.init(h, w, np.mean(depth_frame))
         sI.buildFrom(Id)
 
         # Add to servo task
@@ -92,6 +92,7 @@ while True:
     else:
 
         # Update current feature
+        sI.init(h,w, np.mean(depth_frame))
         sI.buildFrom( vp.core.ImageGray(gray))
 
         # Compute camera velocity

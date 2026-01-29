@@ -1,5 +1,4 @@
-from utils import pixel_to_3d, select_keypoints
-from visual_servo import VisualServo
+
 
 import cv2
 import depthai as dai
@@ -63,14 +62,11 @@ while True:
         init = True
         
         edges = cv2.Canny(gray, 50, 150)
-        '''lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=100, minLineLength=50, maxLineGap=10)
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=20, minLineLength=20)
 
         # pick the longest line
         longest_line = max(lines, key=lambda l: np.linalg.norm([l[0][0]-l[0][2], l[0][1]-l[0][3]]))
-        x1, y1, x2, y2 = longest_line[0]'''
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        longest_contour = max(contours, key=lambda c: cv2.arcLength(c, False))
-        [x1, y1], [x2, y2] = longest_contour[0][0], longest_contour[-1][0]
+        x1, y1, x2, y2 = longest_line[0]
 
         p1 = vp.core.ImagePoint(y1,x1)
         p2 = vp.core.ImagePoint(y2,x2)
@@ -95,6 +91,7 @@ while True:
     #cv2.imshow("RGB Image", rgb_frame)
     #cv2.imshow("Depth Image", depth_colored)
     cv2.imshow("gray",gray)
+    cv2.imshow('canny',edges)
 
     if cv2.waitKey(1) == 27:  # ESC to exit
         break

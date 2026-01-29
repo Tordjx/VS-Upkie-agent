@@ -1,5 +1,4 @@
-from utils import pixel_to_3d, select_keypoints
-from visual_servo import VisualServo
+
 
 import cv2
 import depthai as dai
@@ -9,7 +8,7 @@ import cv2
 import numpy as np
 
 class KLTTracker:
-    def __init__(self, max_corners=500, quality_level=0.01, min_distance=15, win_size=10):
+    def __init__(self, max_corners=500, quality_level=0.1, min_distance=5, win_size=10):
         self.max_corners = max_corners
         self.quality_level = quality_level
         self.min_distance = min_distance
@@ -56,9 +55,7 @@ class KLTTracker:
         return self.points,status
 class VisualServoPoints:
     def __init__(self, lambda_gain=0.2):
-        dof = vp.core.ColVector([0,1,0,0,0,1])
         self.task = vp.vs.Servo()
-        self.task.setCameraDoF(dof)
         self.task.setServo(vp.vs.Servo.EYEINHAND_CAMERA)
         self.task.setInteractionMatrixType(vp.vs.Servo.CURRENT)
         self.task.setLambda(lambda_gain)
@@ -132,7 +129,7 @@ class VisualServoPoints:
             X = (u - cx)/ fx
             Y = (v - cy)/ fy
 
-            pts3d.append([u, v, Z])
+            pts3d.append([X, Y, Z])
 
         return np.array(pts3d)
     def se2_twist(self,twist) :
@@ -143,11 +140,13 @@ minDistance=7           # allow denser points
 maxCorners=1000         # yes, really
 vs = VisualServoPoints()
 tracker = KLTTracker(quality_level=qualityLevel, min_distance=minDistance, max_corners=maxCorners)
+# --- Create DepthAI pipeline -
+size = np.array([640, 400])
 # --- Create DepthAI pipeline ---
 pipeline = dai.Pipeline()
 rgbd = pipeline.create(dai.node.RGBD).build(
-      True, dai.node.StereoDepth.PresetMode.FAST_ACCURACY, 
-      size=(640, 400)
+    True, dai.node.StereoDepth.PresetMode.FAST_ACCURACY, 
+    size=tuple(size //4)
 )
 qRgbd = rgbd.rgbd.createOutputQueue()
 print(dir(dai.node.StereoDepth.PresetMode))
@@ -156,7 +155,49 @@ colorMap = cv2.applyColorMap(np.arange(256, dtype=np.uint8), cv2.COLORMAP_JET)
 colorMap[0] = [0, 0, 0]  # make zero-disparity pixels black
 pipeline.start()
 init = False
-twist_offset = None
+###############
+
+import matplotlib.pyplot as plt
+from collections import deque
+
+history_len = 200  # keep last 200 iterations
+
+# translation histories
+tx_hist = deque(maxlen=history_len)
+ty_hist = deque(maxlen=history_len)
+tz_hist = deque(maxlen=history_len)
+
+# rotation histories
+rx_hist = deque(maxlen=history_len)
+ry_hist = deque(maxlen=history_len)
+rz_hist = deque(maxlen=history_len)
+
+# iteration counter
+iter_hist = deque(maxlen=history_len)
+iteration = 0
+plt.ion()
+fig, ax = plt.subplots(2, 1, figsize=(10, 8))
+
+# Translation
+line_tx, = ax[0].plot([], [], 'r-', label='tx')
+line_ty, = ax[0].plot([], [], 'g-', label='ty')
+line_tz, = ax[0].plot([], [], 'b-', label='tz')
+ax[0].set_ylabel('Translation [units]')
+ax[0].legend()
+ax[0].set_title('Translation Twist Components')
+
+# Rotation
+line_rx, = ax[1].plot([], [], 'r-', label='roll')
+line_ry, = ax[1].plot([], [], 'g-', label='pitch')
+line_rz, = ax[1].plot([], [], 'b-', label='yaw')
+ax[1].set_ylabel('Rotation [rad]')
+ax[1].set_xlabel('Iteration')
+ax[1].legend()
+ax[1].set_title('Rotation Twist Components')
+
+
+###############
+twist = None
 while True:
     inRgbd = qRgbd.get()  # Get RGB-D frame
     rgb_frame = inRgbd.getRGBFrame()     # HxWx3 RGB image
@@ -186,14 +227,33 @@ while True:
                 cv2.circle(rgb_frame, (int(x), int(y)), 3, (0, 255, 0), -1)
         points3d = vs.points2d_to_3d(points,depth_frame, fx,fy,cx,cy)
         twist = vs.servo(points3d,status)
-        if twist_offset is None :
-            twist_offset = twist
-        if twist is not None:
-            # Compute difference from the offset
-            twist_diff = twist - twist_offset
-            twist_diff = np.array(twist_diff)[[1,-1]]
-            print(twist_diff)
-        
+    if twist is not None : 
+        # Update histories
+        iteration += 1
+        iter_hist.append(iteration)
+        tx_hist.append(twist[0])
+        ty_hist.append(twist[1])
+        tz_hist.append(twist[2])
+        rx_hist.append(twist[3])
+        ry_hist.append(twist[4])
+        rz_hist.append(twist[5])
+
+        # Update translation plot
+        line_tx.set_data(iter_hist, tx_hist)
+        line_ty.set_data(iter_hist, ty_hist)
+        line_tz.set_data(iter_hist, tz_hist)
+        ax[0].relim()
+        ax[0].autoscale_view()
+
+        # Update rotation plot
+        line_rx.set_data(iter_hist, rx_hist)
+        line_ry.set_data(iter_hist, ry_hist)
+        line_rz.set_data(iter_hist, rz_hist)
+        ax[1].relim()
+        ax[1].autoscale_view()
+
+        # Draw the plots
+        plt.pause(0.001)
 
     # Normalize depth to 0-255 for visualization
     depth_norm = np.clip(depth_frame/4  * 255, 0, 255).astype(np.uint8)
@@ -204,7 +264,6 @@ while True:
     #cv2.imshow("gray",gray)
     if cv2.waitKey(1) & 0xFF == ord('r'):
         init = False
-        twist_offset = None
     if cv2.waitKey(1) == 27:  # ESC to exit
         break
 
