@@ -1,13 +1,14 @@
 import torch
 import lightglue
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class LGTracker :
 
     def __init__(self) : 
         self.featsd = None
         self.feats = None
-        self.extractor = lightglue.SuperPoint(max_num_keypoints=2048,resize = False).eval().cuda()  # load the extractor
-        self.matcher = lightglue.LightGlue(features='superpoint',filter_threshold= 0.1).eval().cuda()  # load the matcher
+        self.extractor = lightglue.SuperPoint(max_num_keypoints=2048,resize = False).eval().to(device)  # load the extractor
+        self.matcher = lightglue.LightGlue(features='superpoint',filter_threshold= 0.1).eval().to(device)  # load the matcher
     def init_tracking(self, imaged) : 
         with torch.no_grad():
             self.featsd = self.extractor.extract(imaged)

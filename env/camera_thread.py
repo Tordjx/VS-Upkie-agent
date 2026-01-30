@@ -73,9 +73,9 @@ class CameraThread:
 
         source_width, source_height =  rgb_frame.getTransformation().getSourceSize()
         fx = intrinsics_matrix[0][0] *self.size[0]/(self.scale * source_width )
-        fy = intrinsics_matrix[1][1] *self.size[0]/(self.scale * source_height )
+        fy = intrinsics_matrix[1][1] *self.size[1]/(self.scale * source_height )
         cx = intrinsics_matrix[0][2]*self.size[0]/(self.scale * source_width )
-        cy = intrinsics_matrix[1][2]*self.size[0]/(self.scale * source_height )
+        cy = intrinsics_matrix[1][2]*self.size[1]/(self.scale * source_height )
         
         rgb_frame = rgb_frame.getCvFrame()
         depth_frame = depth_frame.getCvFrame()/ 1000
