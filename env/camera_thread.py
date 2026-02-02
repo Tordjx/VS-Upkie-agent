@@ -58,38 +58,43 @@ class CameraThread:
         while self.running:
             twist = self.get_twist()
             with self.lock : 
-                self.latest_twist = twist
-            self.rate_limiter.sleep()
 
+                self.latest_twist = twist
+
+            self.rate_limiter.sleep()
     def get_latest(self):
         with self.lock:
             return self.latest_twist
     
     def get_twist(self): 
+        print(1)
         inRgbd = self.qRgbd.get()  # Get RGB-D frame
         rgb_frame = inRgbd.getRGBFrame()     # HxWx3 RGB image
         depth_frame = inRgbd.getDepthFrame()  # HxW depth in millimeters
         intrinsics_matrix = rgb_frame.getTransformation().getSourceIntrinsicMatrix()
-
         source_width, source_height =  rgb_frame.getTransformation().getSourceSize()
+        print(1)
         fx = intrinsics_matrix[0][0] *self.size[0]/(self.scale * source_width )
         fy = intrinsics_matrix[1][1] *self.size[1]/(self.scale * source_height )
         cx = intrinsics_matrix[0][2]*self.size[0]/(self.scale * source_width )
         cy = intrinsics_matrix[1][2]*self.size[1]/(self.scale * source_height )
-        
         rgb_frame = rgb_frame.getCvFrame()
         depth_frame = depth_frame.getCvFrame()/ 1000
         #depth_frame = np.ones_like(depth_frame)
         rgb_torch = torch.from_numpy(rgb_frame).moveaxis(-1,0)/255
-        if not init : 
-            init = True
+        print(1)
+        if not self.init : 
+            self.init = True
             self.tracker.init_tracking(rgb_torch)
         else :
             pointsd , points  = self.tracker.track(rgb_torch)
+            print(len(points))
             if points is not None and pointsd is not None:
                 points_polar = self.vs.points2polar(points,depth_frame, fx,fy,cx,cy)
                 points_polar_d = self.vs.points2polar(pointsd,np.ones_like(depth_frame), fx,fy,cx,cy)
                 twist = self.vs.servo(points_polar, points_polar_d)
+        print(1)
+        print(twist, "twist")
         if twist is None : 
             twist = np.zeros(2)
         else : 

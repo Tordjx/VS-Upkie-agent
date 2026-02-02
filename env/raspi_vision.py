@@ -33,6 +33,7 @@ class RaspiImageWrapper(Wrapper):
         s, r, d, t, i = self.env.step(action)
         if self.request_reinit : 
             self.camera_thread.request_reinit()
+            self.request_reinit = False
         i['vs_twist'] = self.camera_thread.get_latest()
         return s, r, d, t, i
 

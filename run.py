@@ -47,8 +47,9 @@ env = make_rays_pink_env(
     eval_mode=False,
 )
 
-use_vs = False
+
 def main():
+    use_vs = False
     rate_limiter = RateLimiter(frequency=10)
     s, i = env.reset()
 
@@ -59,17 +60,25 @@ def main():
         if use_vs : 
             vs_twist  = i['vs_twist']
             action = np.array([vs_twist])
+            print('twist', action)
         else : 
             target_forward = -i["spine_observation"]["joystick"]["left_axis"][1]
             target_yaw = -i["spine_observation"]["joystick"]["left_axis"][0]
             action = np.array([target_forward, target_yaw])
+        
         s, r, d, t, i = env.step(action)
         if i["spine_observation"]["joystick"]["triangle_button"] or d:
             obs, i = env.reset()
         if i["spine_observation"]["joystick"]["cross_button"] or d:
+            print('took a picture!!!!! ')
             env.request_reinit = True
         if i["spine_observation"]["joystick"]["square_button"] or d:
-            use_vs = True
+            if use_vs : 
+                print("use vs set to False")
+                use_vs = False
+            else : 
+                print('use vs set to true')
+                use_vs=True
 
 
 if __name__ == "__main__":

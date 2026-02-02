@@ -6,9 +6,8 @@
 
 import gymnasium
 import numpy as np
-from upkie.envs import UpkieGroundVelocity
 from upkie.utils.raspi import on_raspi
-
+from upkie.envs import UpkieGroundVelocity
 from config.settings import EnvSettings
 from env.navigation_wrapper import NavigationWrapper
 

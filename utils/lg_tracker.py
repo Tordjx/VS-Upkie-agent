@@ -7,11 +7,14 @@ class LGTracker :
     def __init__(self) : 
         self.featsd = None
         self.feats = None
-        self.extractor = lightglue.SuperPoint(max_num_keypoints=2048,resize = False).eval().to(device)  # load the extractor
+        self.extractor = lightglue.SuperPoint(max_num_keypoints=2048,resize = None).eval().to(device)  # load the extractor
         self.matcher = lightglue.LightGlue(features='superpoint',filter_threshold= 0.1).eval().to(device)  # load the matcher
     def init_tracking(self, imaged) : 
+        print(1)
         with torch.no_grad():
+            print(1)
             self.featsd = self.extractor.extract(imaged)
+            print(1)
     def track(self, image):
         with torch.no_grad():
             self.feats = self.extractor.extract(image)
