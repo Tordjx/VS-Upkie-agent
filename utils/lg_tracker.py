@@ -24,3 +24,25 @@ class LGTracker :
             pointsd = feats0['keypoints'][matches[..., 0]].cpu().numpy()  # coordinates in image #0, shape (K,2)
             points = feats1['keypoints'][matches[..., 1]].cpu().numpy()   # coordinates in image #1, shape (K,2)
             return pointsd, points
+
+class LGTrackerCAM :
+
+    def __init__(self) : 
+        self.featsd = None
+        self.feats = None
+        self.matcher = lightglue.LightGlue(features='superpoint',filter_threshold= 0.1).eval().to(device)  # load the matcher
+    def init_tracking(self, features) : 
+        print(1)
+        with torch.no_grad():
+            print(1)
+            self.featsd = features
+            print(1)
+    def track(self, features):
+        with torch.no_grad():
+            self.feats = features
+            matches01 = self.matcher({'image0': self.featsd, 'image1': self.feats})
+            feats0, feats1, matches01 = [lightglue.utils.rbd(x) for x in [self.featsd, self.feats, matches01]]  # remove batch dimension
+            matches = matches01['matches']  # indices with shape (K,2)
+            pointsd = feats0['keypoints'][matches[..., 0]].cpu().numpy()  # coordinates in image #0, shape (K,2)
+            points = feats1['keypoints'][matches[..., 1]].cpu().numpy()   # coordinates in image #1, shape (K,2)
+            return pointsd, points

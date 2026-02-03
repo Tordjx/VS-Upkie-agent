@@ -58,14 +58,12 @@ def main():
         
         # Send obstacle points
         if use_vs : 
-            vs_twist  = i['vs_twist']
-            action = np.array([vs_twist])
+            vx,wz  = i['vs_twist']
+            action = np.array([-wz, vx])
+            action = np.clip(action * 10, -1, 1) -i["spine_observation"]["joystick"]["left_axis"]
             print('twist', action)
-        else : 
-            target_forward = -i["spine_observation"]["joystick"]["left_axis"][1]
-            target_yaw = -i["spine_observation"]["joystick"]["left_axis"][0]
-            action = np.array([target_forward, target_yaw])
-        
+        else :
+            action = np.zeros(2)
         s, r, d, t, i = env.step(action)
         if i["spine_observation"]["joystick"]["triangle_button"] or d:
             obs, i = env.reset()

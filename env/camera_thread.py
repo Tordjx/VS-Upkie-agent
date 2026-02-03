@@ -9,7 +9,7 @@ gin.parse_config_file("config/settings.gin")
 from config.settings import EnvSettings
 from scipy.spatial.transform import Rotation as R
 import torch
-from utils.lg_tracker import LGTracker 
+from utils.lg_tracker import LGTrackerCAM 
 from utils.polar_vs import PolarVS
 config = EnvSettings()
 def set_self_affinity(core):
@@ -18,7 +18,7 @@ def set_self_affinity(core):
 
 
 class CameraThread:
-    def __init__(self, pipeline, qRgbd, device,size, scale, fps=10):
+    def __init__(self, pipeline, qRgb, qDepth, qNn, device, size, scale,parser, fps=10):
         """
         camera: your camera interface object, e.g. with .get_image()
         encoder: your encoder object or function
@@ -27,15 +27,17 @@ class CameraThread:
         self.device = device
         self.scale = scale
         self.size = size
+        self.qNn = qNn
         self.pipeline = pipeline 
-        self.qRgbd = qRgbd
+        self.qRgb = qRgb
+        self.qDepth = qDepth
+        self.parser = parser
         self.fps = fps
         self.rate_limiter = RateLimiter(frequency = fps)
         self.latest_twist = None
         self.lock = threading.Lock()
         self.running = False
         self.thread = threading.Thread(target=self.run)
-        self.tracker = LGTracker()
         self.vs  = PolarVS()
         self.init = False
     def request_reinit(self) : 
@@ -67,13 +69,12 @@ class CameraThread:
             return self.latest_twist
     
     def get_twist(self): 
-        print(1)
-        inRgbd = self.qRgbd.get()  # Get RGB-D frame
-        rgb_frame = inRgbd.getRGBFrame()     # HxWx3 RGB image
-        depth_frame = inRgbd.getDepthFrame()  # HxW depth in millimeters
+        twist = None
+        rgb_frame = self.qRgb.get()     # HxWx3 RGB image
+        features = self.qNn.get()
+        depth_frame = self.qDepth.get()  # HxW depth in millimeters
         intrinsics_matrix = rgb_frame.getTransformation().getSourceIntrinsicMatrix()
         source_width, source_height =  rgb_frame.getTransformation().getSourceSize()
-        print(1)
         fx = intrinsics_matrix[0][0] *self.size[0]/(self.scale * source_width )
         fy = intrinsics_matrix[1][1] *self.size[1]/(self.scale * source_height )
         cx = intrinsics_matrix[0][2]*self.size[0]/(self.scale * source_width )
@@ -82,21 +83,20 @@ class CameraThread:
         depth_frame = depth_frame.getCvFrame()/ 1000
         #depth_frame = np.ones_like(depth_frame)
         rgb_torch = torch.from_numpy(rgb_frame).moveaxis(-1,0)/255
-        print(1)
         if not self.init : 
             self.init = True
-            self.tracker.init_tracking(rgb_torch)
+            self.parser.setTrigger()
         else :
-            pointsd , points  = self.tracker.track(rgb_torch)
-            print(len(points))
+            points = np.array([[f.position.x, f.position.y] for f in features.trackedFeatures])
+            n  = len(points)
+            points, pointsd = points[0:n:2] ,points[1:n:2]
             if points is not None and pointsd is not None:
                 points_polar = self.vs.points2polar(points,depth_frame, fx,fy,cx,cy)
                 points_polar_d = self.vs.points2polar(pointsd,np.ones_like(depth_frame), fx,fy,cx,cy)
                 twist = self.vs.servo(points_polar, points_polar_d)
-        print(1)
-        print(twist, "twist")
         if twist is None : 
             twist = np.zeros(2)
         else : 
             twist = np.array(twist)[[0,-1]]
+        
         return twist
