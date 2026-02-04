@@ -40,6 +40,7 @@ class CameraThread:
         self.thread = threading.Thread(target=self.run)
         self.vs  = PolarVS()
         self.init = False
+        self.ema_twist = np.zeros(2)
     def request_reinit(self) : 
         self.init =False
     def start(self):
@@ -86,17 +87,21 @@ class CameraThread:
         if not self.init : 
             self.init = True
             self.parser.setTrigger()
+            self.ema_twist = np.zeros(2)
         else :
             points = np.array([[f.position.x, f.position.y] for f in features.trackedFeatures])
             n  = len(points)
             points, pointsd = points[0:n:2] ,points[1:n:2]
             if points is not None and pointsd is not None:
                 points_polar = self.vs.points2polar(points,depth_frame, fx,fy,cx,cy)
-                points_polar_d = self.vs.points2polar(pointsd,np.ones_like(depth_frame), fx,fy,cx,cy)
+                points_polar_d = self.vs.points2polar(pointsd,depth_frame, fx,fy,cx,cy)
                 twist = self.vs.servo(points_polar, points_polar_d)
         if twist is None : 
             twist = np.zeros(2)
         else : 
             twist = np.array(twist)[[0,-1]]
+        twist=  np.array(twist)
+        alpha = 0.05
+        self.ema_twist = np.clip(alpha * twist + (1 - alpha) * self.ema_twist , -1,1)
         
-        return twist
+        return self.ema_twist

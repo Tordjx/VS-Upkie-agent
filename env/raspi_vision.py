@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from env.camera_thread import CameraThread
 from depthai_nodes.node import ParsingNeuralNetwork
-model = 'xfeat:mono-640x480'
+model = 'xfeat:mono-320x240'
 def create_pipeline() : 
     device = dai.Device()
     pipeline = dai.Pipeline(device)
@@ -14,9 +14,9 @@ def create_pipeline() :
     monoRight = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_C)
     color = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_A)
     stereo = pipeline.create(dai.node.StereoDepth)
-
+    stereo.setOutputSize(size[0],size[1])
     # Linking
-    colorOut = color.requestOutput(size, fps = 10)
+    colorOut = color.requestOutput(size, fps = 10, type = dai.ImgFrame.Type.BGR888p)
     monoLeftOut = monoLeft.requestOutput(size, fps = 10)
     monoRightOut = monoRight.requestOutput(size, fps = 10)
     monoLeftOut.link(stereo.left)
@@ -26,17 +26,16 @@ def create_pipeline() :
     stereo.setRectification(False)
     stereo.setExtendedDisparity(False)
     stereo.setLeftRightCheck(True)
-
+    
     nn = pipeline.create(ParsingNeuralNetwork).build(
-        color,    # Pass the RGBD node
+        colorOut,    # Pass the RGBD node
         model,   # Your model identifier
-        fps = 10
     )
     qNn = nn.out.createOutputQueue()
     qRgb = colorOut.createOutputQueue()
     qDepth = stereo.depth.createOutputQueue()
     parser = nn.getParser(0)
-    parser.setMaxKeypoints(128)
+    parser.setMaxKeypoints(256)
     return pipeline, qRgb, qDepth, qNn, device, size, scale,parser
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
