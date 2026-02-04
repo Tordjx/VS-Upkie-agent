@@ -2,7 +2,7 @@ import visp as vp
 import numpy as np
 
 class PolarVS:
-    def __init__(self, lambda_gain=0.2):
+    def __init__(self, lambda_gain=2):
         self.lambda_gain = lambda_gain
 
         self.p = []      # current features
